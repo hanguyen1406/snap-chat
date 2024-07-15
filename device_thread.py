@@ -1,44 +1,59 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-import time
+import sys
+from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtWidgets import QApplication, QLabel, QPushButton, QVBoxLayout, QWidget
 
-# Đường dẫn tới ChromeDriver
 
-# Hàm mở cửa sổ trình duyệt mới và thiết lập vị trí
-def open_browser_and_set_position(x, y, width, height):
-    chrome_options = Options()
-    driver = webdriver.Chrome(options=chrome_options)
-    driver.set_window_position(x, y)
-    driver.set_window_size(width, height)
-    return driver
+class Worker(QThread):
+    finished = pyqtSignal()  # Signal emitted when the task is finished
+    progress = pyqtSignal(int)  # Signal emitted to report progress
 
-# Kích thước và khoảng cách giữa các cửa sổ
-window_width = 100
-window_height = 400
-gap = 40
 
-# Số lượng cửa sổ muốn mở
-num_windows = 7
+    def run(self):
+        """Long-running task"""
+        for i in range(7):
+            self.msleep(1000)  # Sleep for 1000 milliseconds (1 second)
+            self.progress.emit(i + 1)  # Emit progress signal
+        self.finished.emit()  # Emit finished signal when done
 
-# Danh sách các driver cho các cửa sổ
-drivers = []
 
-# Thiết lập vị trí và mở các cửa sổ
-for i in range(num_windows):
-    row = i // 7  # Tính số hàng (0-based index)
-    col = i % 7  # Tính số cột (0-based index)
-    
-    x_position = col * (window_width + gap)
-    y_position = row * (window_height + gap)
-    print(f"Window {i}: ({x_position}, {y_position})")
+class App(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
 
-    driver = open_browser_and_set_position(x_position, y_position, window_width, window_height)
-    driver.get("https://www.example.com")  # Mở một trang web để kiểm tra
-    drivers.append(driver)
+    def init_ui(self):
+        self.setWindowTitle('QThread Example with msleep')
 
-# Thêm thời gian để quan sát các cửa sổ đã mở và sắp xếp
-time.sleep(10)
+        self.layout = QVBoxLayout()
 
-# Đóng tất cả các cửa sổ trình duyệt
-for driver in drivers:
-    driver.quit()
+        self.label = QLabel('Press the button to start the task', self)
+        self.layout.addWidget(self.label)
+
+        self.button = QPushButton('Start Task', self)
+        self.button.clicked.connect(self.start_task)
+        self.layout.addWidget(self.button)
+
+        self.setLayout(self.layout)
+
+    def start_task(self):
+        self.worker = Worker()
+        self.worker.progress.connect(self.report_progress)
+        self.worker.finished.connect(self.task_finished)
+        self.worker.start()
+
+    def report_progress(self, n):
+        self.label.setText(f'Task progress: {n}')
+
+    def task_finished(self):
+        self.label.setText('Task finished')
+
+
+def main():
+    app = QApplication(sys.argv)
+    ex = App()
+    ex.show()
+    sys.exit(app.exec())
+
+
+if __name__ == '__main__':
+    main()

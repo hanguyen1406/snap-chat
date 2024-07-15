@@ -11,6 +11,7 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtCore import QThread, pyqtSignal
 
 outlooks = []
 names = []
@@ -19,10 +20,22 @@ user_agents = open('user-agents.txt').read().splitlines()
 registered = open('reg_success.txt', 'a', encoding='utf-8')
 mail_used = open('mail_used.txt', 'a', encoding='utf-8')
 # Kích thước và khoảng cách giữa các cửa sổ
-window_width = 100
-window_height = 600
-gap = 80
+gap = 0
+window_width = 220
+window_height = 700
 
+
+class Worker(QThread):
+    finished = pyqtSignal()  # Signal emitted when the task is finished
+    progress = pyqtSignal(int)  # Signal emitted to report progress
+
+
+    def run(self):
+        """Long-running task"""
+        for i in range(7):
+            self.msleep(1000)  # Sleep for 1000 milliseconds (1 second)
+            self.progress.emit(i + 1)  # Emit progress signal
+        self.finished.emit()  # Emit finished signal when done
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -103,6 +116,19 @@ class Ui_MainWindow(object):
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
+    def start_task(self):
+        self.worker = Worker()
+        self.worker.progress.connect(self.report_progress)
+        self.worker.finished.connect(self.task_finished)
+        self.worker.start()
+        self.worker.wait()
+
+    def report_progress(self, n):
+        print(f'Task progress: {n}')
+
+    def task_finished(self):
+        print('Task finished')
+
     def get_random_name(self):
         global names
         random_line = random.choice(names)
@@ -120,56 +146,50 @@ class Ui_MainWindow(object):
             print(f"Request failed with status code: {response.status_code}")
             return []
 
-    def main(self, n, distant, end, x_pos, y_pos):
+    def main(self, j, distant, nothreads, x_pos, y_pos):
+        # j là index của acc trong list outlooks
         global user_agents, outlooks, window_width, window_height
-        index = n * distant
-        while index < end:
-            print(f"Thread {n}:({index} -> {end}) is running")
-            # Configure Chrome options to use the proxy
-            try:
-                proxy = self.get_proxys(1, self.lineEdit_2.text())[0]
-                # proxy = self.get_proxys(1, self.lineEdit_2.text())
-                if proxy[0] == '{': 
-                    self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Lấy proxy lỗi, đang thử lại..."))
-                    print("Get proxy lỗi", end="\r")
-                    for i in range(10, -1, -1):
-                        print(f"Get proxy lỗi, chờ {i}s", end="\r")
-                        self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem(f"Get proxy lỗi, vui lòng chờ {i}s"))
-                        sleep(1)
-                    sleep(5)
-                    continue
-                else:
-                    self.tableWidget.setItem(index, 1, QtWidgets.QTableWidgetItem(proxy))
-            except:
-                print("Proxy hết dung lượng")
-                self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Proxy hết dung lượng, dừng chạy"))
-                break
-            finally:
-                print(proxy)
-            
-            user_agent = random.choice(user_agents)
-            # print(user_agent)
-            # break
-            options = Options()
-            options.add_argument(f"--proxy-server={proxy}")
-            options.add_argument(f'user-agent={user_agent}')
-            options.add_argument(f"--window-size={window_width},{window_height}")
-            options.add_argument("--no-sandbox")
-            options.add_argument("--disable-dev-shm-usage")
-            options.add_argument("--display=:1")
-            options.add_argument("--log-level=3")
-            
-            # driver.set_window_size(window_width, window_height)
+        while 1:
+            print(f"Thread {j % nothreads + 1} : ({j} is running)")     
             #kiểm tra mail đã dùng hay chưa
             check_mail = open('mail_used.txt').read().splitlines()
-            mail = outlooks[index].strip()
+            mail = outlooks[j].strip()
             print(mail)
             if mail in check_mail:
                 print("Mail đã sử dụng")
-                self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Mail đã sử dụng, chuyển sang mail tiếp"))
-                index += 1
+                self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Mail đã sử dụng, chuyển sang mail tiếp"))
+                break
             else:
-                sleep(distant)
+                # Configure Chrome options to use the proxy
+                try:
+                    proxy = self.get_proxys(1, self.lineEdit_2.text())[0]
+                    # proxy = self.get_proxys(1, self.lineEdit_2.text())
+                    if proxy[0] == '{': 
+                        self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Lấy proxy lỗi, đang thử lại..."))
+                        print("Get proxy lỗi", end="\r")
+                        for i in range(10, -1, -1):
+                            print(f"Get proxy lỗi, chờ {i}s", end="\r")
+                            self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem(f"Get proxy lỗi, vui lòng chờ {i}s"))
+                            sleep(1)
+                        sleep(5)
+                        continue
+                    else:
+                        self.tableWidget.setItem(j, 1, QtWidgets.QTableWidgetItem(proxy))
+                except:
+                    print("Proxy hết dung lượng")
+                    self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Proxy hết dung lượng, dừng chạy"))
+                    break
+                finally:
+                    print(proxy)
+                
+                user_agent = random.choice(user_agents)
+                # print(user_agent)
+                # break
+                options = Options()
+                options.add_argument(f"--proxy-server={proxy}")
+                options.add_argument(f'user-agent={user_agent}')
+                options.add_argument(f"--window-size={window_width},{window_height}")
+                options.add_experimental_option('excludeSwitches', ['enable-logging'])
                 driver = webdriver.Chrome(
                     service=ChromeService(ChromeDriverManager().install()),
                     options=options,
@@ -179,7 +199,7 @@ class Ui_MainWindow(object):
                 #running
                 driver.get("https://accounts.snapchat.com/accounts/v2/signup")
                 # driver.get("https://whatismyipaddress.com/")
-
+             
                 # print(options.arguments)
                 try:
                     accept_button = WebDriverWait(driver, 10).until(
@@ -196,42 +216,42 @@ class Ui_MainWindow(object):
                     accept_button.click()
                 except Exception as e:
                     print("Proxy không phản hồi, đổi proxy khác")
-                    self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Proxy không phản hồi, đổi proxy khác"))
+                    self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Proxy không phản hồi, đổi proxy khác"))
                     driver.quit()
                     continue
 
-                self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Nhập dữ liệu"))
+                self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập dữ liệu"))
                 sleep(7)
-                self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Nhập first name"))
+                self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập first name"))
                 first_name = driver.find_element(By.CSS_SELECTOR, "input[name=first_name]")
                 name = self.get_random_name()
                 first_name.send_keys(name)
                 
                 sleep(2)
-                self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Nhập last name"))
+                self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập last name"))
                 name = self.get_random_name()
                 last_name = driver.find_element(By.CSS_SELECTOR, "input[name=last_name]")
                 last_name.send_keys(name)
 
                 sleep(2)
-                self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Nhập username"))
+                self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập username"))
                 user_name = driver.find_element(By.CSS_SELECTOR, "input[name=username]")
                 un = self.generate_random_string()
                 user_name.send_keys(un)
                 
                 sleep(2)
-                self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Nhập email"))
+                self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập email"))
                 email = driver.find_element(By.CSS_SELECTOR, "input[name=email]")               
                 email.send_keys(mail.split('|')[0])
-                print(f"Đang đăng ký cho mail {mail.split('|')[0]} index: {index}")
+                print(f"Đang đăng ký cho mail {mail.split('|')[0]} index: {j}")
 
                 sleep(2)
-                self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Nhập password"))
+                self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập password"))
                 pw = driver.find_element(By.CSS_SELECTOR, "input[name=password]")
                 pw.send_keys(mail.split('|')[1])
 
                 sleep(2)
-                self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Nhập ngày sinh"))
+                self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập ngày sinh"))
                 month = driver.find_element(By.CSS_SELECTOR, "select[name=birthday_month]")
                 select = Select(month)
                 ran_month = random.randint(1, 12)
@@ -249,26 +269,24 @@ class Ui_MainWindow(object):
                 sleep(20)
                 prefix = "https://accounts.snapchat.com/accounts/v2/signup/email_verification"
                 
-                self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Nhập mã xác minh"))
+                self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập mã xác minh"))
 
                 try:
-                    res = self.submit_data(driver, n, distant, un, mail, prefix)
+                    res = self.submit_data(driver, j, distant, un, mail, prefix)
                     if res == "Đăng ký thành công":
-                        self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Đăng ký thành công, chuyển email tiếp"))
-                        index += 1
+                        self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Đăng ký thành công, chuyển email tiếp"))
                     elif res == "Chưa có mail":
-                        self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Chưa có mail, thử reg lại"))
+                        self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Chưa có mail, thử reg lại"))
                     elif res == "Tên đã đăng ký":
-                        self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Tên đã đăng ký, thử lại tên khác"))
+                        self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Tên đã đăng ký, thử lại tên khác"))
                         un = self.generate_random_string()
                         user_name.send_keys(un)
-                        self.submit_data(driver, n, distant, un, mail, prefix)
+                        self.submit_data(driver, j, distant, un, mail, prefix)
                         driver.quit()
                     elif res == "Email đã đăng ký":
-                        self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Email đã đăng ký, chuyển email tiếp"))
-                        index += 1
+                        self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Email đã đăng ký, chuyển email tiếp"))
                     elif res == "Proxy dính check capcha":
-                        self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Proxy dính check capcha, thử lại ip khác"))
+                        self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Proxy dính check capcha, thử lại ip khác"))
                 except:
                     print("Error")
                 finally:
@@ -312,7 +330,7 @@ class Ui_MainWindow(object):
                 return "Email đã đăng ký"
                 # n += 1
             else:
-                print(f"Proxy {n % distant} dính check capcha, đổi ip mới")
+                print(f"Proxy {n} dính check capcha, đổi ip mới")
                 return "Proxy dính check capcha"
         
 
@@ -377,7 +395,7 @@ class Ui_MainWindow(object):
                         print("name")
                         self.pushButton_2.setStyleSheet("QPushButton { background-color : green }")
                         self.label_2.setText(f"Số name: {len(names)}")
-                        
+
     def run(self):
         global outlooks, names, nothreads, window_height, window_width, gap
         if outlooks == []:
@@ -390,19 +408,23 @@ class Ui_MainWindow(object):
             QMessageBox.information(None , 'Error', 'Chưa nhập link proxy')
         else:
             nothreads = int(self.lineEdit.text())
-            print(nothreads)
+            # print(nothreads)
             dis = len(outlooks) // nothreads
-            for i in range(nothreads):
-                row = i // nothreads  # Tính số hàng (0-based index)
-                col = i % nothreads  # Tính số cột (0-based index)
-                
-                x_position = col * (window_width + gap)
-                y_position = row * (window_height + gap)
-                print(f"Window {i}: ({x_position}, {y_position})")
+            for i in range(0, len(outlooks), nothreads):
+                threads = []
+                for j in range(i, i + nothreads):
+                    row = (j % nothreads) // nothreads  # Tính số hàng (0-based index)
+                    col = (j % nothreads) % nothreads  # Tính số cột (0-based index)
+                    print(j)
+                    x_position = col * (window_width + gap)
+                    y_position = row * (window_height + gap)
+                    t = threading.Thread(target=self.main, args=(j, dis, nothreads, x_position, y_position))
+                    threads.append(t)
+                    t.start()
+                    self.start_task()
 
-                # (x_position, y_position, window_width, window_height)
-                threading.Thread(target=self.main, args=(i, dis, i * dis + dis, x_position, y_position)).start()
-                sleep(20)
+                for t in threads:
+                    t.join()
 
     def generate_random_string(self):
         length = random.randint(6, 10)
