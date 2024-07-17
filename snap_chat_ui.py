@@ -11,7 +11,8 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QMessageBox
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6 import QtTest
+
 
 outlooks = []
 names = []
@@ -23,19 +24,7 @@ mail_used = open('mail_used.txt', 'a', encoding='utf-8')
 gap = 0
 window_width = 220
 window_height = 700
-
-
-class Worker(QThread):
-    finished = pyqtSignal()  # Signal emitted when the task is finished
-    progress = pyqtSignal(int)  # Signal emitted to report progress
-
-
-    def run(self):
-        """Long-running task"""
-        for i in range(7):
-            self.msleep(1000)  # Sleep for 1000 milliseconds (1 second)
-            self.progress.emit(i + 1)  # Emit progress signal
-        self.finished.emit()  # Emit finished signal when done
+end_thread = []
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -116,18 +105,7 @@ class Ui_MainWindow(object):
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
-    def start_task(self):
-        self.worker = Worker()
-        self.worker.progress.connect(self.report_progress)
-        self.worker.finished.connect(self.task_finished)
-        self.worker.start()
-        self.worker.wait()
-
-    def report_progress(self, n):
-        print(f'Task progress: {n}')
-
-    def task_finished(self):
-        print('Task finished')
+   
 
     def get_random_name(self):
         global names
@@ -148,7 +126,7 @@ class Ui_MainWindow(object):
 
     def main(self, j, distant, nothreads, x_pos, y_pos):
         # j là index của acc trong list outlooks
-        global user_agents, outlooks, window_width, window_height
+        global user_agents, outlooks, window_width, window_height, end_thread
         while 1:
             print(f"Thread {j % nothreads + 1} : ({j} is running)")     
             #kiểm tra mail đã dùng hay chưa
@@ -157,6 +135,7 @@ class Ui_MainWindow(object):
             print(mail)
             if mail in check_mail:
                 print("Mail đã sử dụng")
+                end_thread[j % nothreads] = 1
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Mail đã sử dụng, chuyển sang mail tiếp"))
                 break
             else:
@@ -170,8 +149,8 @@ class Ui_MainWindow(object):
                         for i in range(10, -1, -1):
                             print(f"Get proxy lỗi, chờ {i}s", end="\r")
                             self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem(f"Get proxy lỗi, vui lòng chờ {i}s"))
-                            sleep(1)
-                        sleep(5)
+                            self.ui_sleep(1)
+                        self.ui_sleep(5)
                         continue
                     else:
                         self.tableWidget.setItem(j, 1, QtWidgets.QTableWidgetItem(proxy))
@@ -183,8 +162,7 @@ class Ui_MainWindow(object):
                     print(proxy)
                 
                 user_agent = random.choice(user_agents)
-                # print(user_agent)
-                # break
+                
                 options = Options()
                 options.add_argument(f"--proxy-server={proxy}")
                 options.add_argument(f'user-agent={user_agent}')
@@ -194,12 +172,13 @@ class Ui_MainWindow(object):
                     service=ChromeService(ChromeDriverManager().install()),
                     options=options,
                 )
-                driver.set_page_load_timeout(50)
                 driver.set_window_position(x_pos, y_pos)
-                #running
+                driver.set_page_load_timeout(80)
                 driver.get("https://accounts.snapchat.com/accounts/v2/signup")
+                
+                # self.ui_sleep(15)
+                # break
                 # driver.get("https://whatismyipaddress.com/")
-             
                 # print(options.arguments)
                 try:
                     accept_button = WebDriverWait(driver, 10).until(
@@ -221,36 +200,36 @@ class Ui_MainWindow(object):
                     continue
 
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập dữ liệu"))
-                sleep(7)
+                self.ui_sleep(7)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập first name"))
                 first_name = driver.find_element(By.CSS_SELECTOR, "input[name=first_name]")
                 name = self.get_random_name()
                 first_name.send_keys(name)
                 
-                sleep(2)
+                self.ui_sleep(2)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập last name"))
                 name = self.get_random_name()
                 last_name = driver.find_element(By.CSS_SELECTOR, "input[name=last_name]")
                 last_name.send_keys(name)
 
-                sleep(2)
+                self.ui_sleep(2)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập username"))
                 user_name = driver.find_element(By.CSS_SELECTOR, "input[name=username]")
                 un = self.generate_random_string()
                 user_name.send_keys(un)
                 
-                sleep(2)
+                self.ui_sleep(2)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập email"))
                 email = driver.find_element(By.CSS_SELECTOR, "input[name=email]")               
                 email.send_keys(mail.split('|')[0])
                 print(f"Đang đăng ký cho mail {mail.split('|')[0]} index: {j}")
 
-                sleep(2)
+                self.ui_sleep(2)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập password"))
                 pw = driver.find_element(By.CSS_SELECTOR, "input[name=password]")
                 pw.send_keys(mail.split('|')[1])
 
-                sleep(2)
+                self.ui_sleep(2)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập ngày sinh"))
                 month = driver.find_element(By.CSS_SELECTOR, "select[name=birthday_month]")
                 select = Select(month)
@@ -266,32 +245,56 @@ class Ui_MainWindow(object):
                 print(driver.current_url)
                 submit = driver.find_element(By.CSS_SELECTOR, "button")
                 submit.click()
-                sleep(20)
+                self.count_down_ui(30)
                 prefix = "https://accounts.snapchat.com/accounts/v2/signup/email_verification"
                 
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập mã xác minh"))
 
                 try:
-                    res = self.submit_data(driver, j, distant, un, mail, prefix)
-                    if res == "Đăng ký thành công":
-                        self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Đăng ký thành công, chuyển email tiếp"))
-                    elif res == "Chưa có mail":
-                        self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Chưa có mail, thử reg lại"))
-                    elif res == "Tên đã đăng ký":
-                        self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Tên đã đăng ký, thử lại tên khác"))
-                        un = self.generate_random_string()
-                        user_name.send_keys(un)
-                        self.submit_data(driver, j, distant, un, mail, prefix)
-                        driver.quit()
-                    elif res == "Email đã đăng ký":
-                        self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Email đã đăng ký, chuyển email tiếp"))
-                    elif res == "Proxy dính check capcha":
-                        self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Proxy dính check capcha, thử lại ip khác"))
+                    exit_loop = False
+                    #có 2 vòng loop, 1 vòng là lặp lại đăng ký, 1 vòng là chưa có code mail
+                    while 1:
+                        #vòng lặp này sẽ lặp đế khi nhận đc code thì dừng
+                        # => điều kiện dừng là nhận đc code
+                        #vòng lặp này sẽ lặp lại khi chưa nhận đc mail hoặc tên đã đk
+                        res = self.submit_data(driver, j, distant, un, mail, prefix)
+                        if res == "Đăng ký thành công":
+                            end_thread[j % nothreads] = 1
+                            self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Đăng ký thành công, chuyển email tiếp"))
+                            exit_loop = True
+                            break
+                        elif res == "Chưa có mail":
+                            self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Chưa có mail, thử lấy lại code"))
+                            self.count_down_ui(j, 60)
+                        
+                        elif res == "Tên đã đăng ký":
+                            self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Tên đã đăng ký, thử lại tên khác"))
+                            un = self.generate_random_string()
+                            user_name.send_keys(un)
+                            submit.click()
+                            self.count_down_ui(30)
+                            # ấn submit và lặp lại lấy code
+                            # self.submit_data(driver, j, distant, un, mail, prefix)
+                        elif res == "Email đã đăng ký":
+                            end_thread[j % nothreads] = 1
+                            self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Email đã đăng ký, chuyển email tiếp"))
+                            exit_loop = True
+                            break
+                        elif res == "Proxy dính check capcha":
+                            self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Proxy dính check capcha, thử lại ip khác"))
+                            break
+                    if exit_loop:
+                        break
                 except:
                     print("Error")
                 finally:
                     driver.quit()
-            sleep(5)
+            self.ui_sleep(5)
+
+    def count_down_ui(self, index, x):
+        for i in range(x, 0, -1):
+            self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem(f"Còn {i}s"))
+            self.ui_sleep(1)
 
     def submit_data(self, driver, n, distant, un, mail, prefix):
         global registered, mail_used
@@ -309,24 +312,20 @@ class Ui_MainWindow(object):
                     registered.flush()
                     mail_used.flush()
                     print("Đăng ký thành công, chuyển sang mail tiếp theo")
-                    driver.quit()
                     return "Đăng ký thành công"
                     
                 else:
-                    print("Chưa có mail, thử chạy lại")
-                    driver.quit()
+                    print("Chưa có mail, chờ 1 phút để lấy lại mail")
                     return "Chưa có mail"
         else:
-            sleep(5)
+            self.ui_sleep(5)
             if driver.page_source.find("Username is already taken") != -1:
                 print(f"Tên {un} đã đăng ký, đang tạo lại username")
-                driver.quit()
                 return "Tên đã đăng ký"
             elif driver.page_source.find("Email address is already taken") != -1:
                 print(f"Email {mail} đã đăng ký")
                 mail_used.write(f'{mail}\n')
                 mail_used.flush()
-                driver.quit()
                 return "Email đã đăng ký"
                 # n += 1
             else:
@@ -358,22 +357,7 @@ class Ui_MainWindow(object):
         self.pushButton_6.setText(_translate("MainWindow", "Link proxy:"))
         self.pushButton.clicked.connect(lambda: self.mo_file_cookie("outlook"))
         self.pushButton_2.clicked.connect(lambda: self.mo_file_cookie("name"))
-        self.pushButton_4.clicked.connect(self.run)
-
-    def hat_delay(self,dl, i):
-        for x in range(int(dl) , 0, -1):
-            print(f'[T][LOADING][|][x.....][{x}]      ',end='\r')
-            sleep(0.200)
-            print(f'[T][LOADING][/][xX....][{x}]      ',end='\r')
-            sleep(0.200)
-            print(f'[T][LOADING][-][xxX...][{x}]      ',end='\r')
-            sleep(0.200)
-            print(f'[T][LOADING][\\][xxxX..][{x}]      ',end='\r')
-            sleep(0.200)
-            print(f'[T][LOADING][|][xxxxX.][{x}]      ',end='\r')
-            sleep(0.200)
-            print(f'[T][LOADING][|][xxxxxx][{x}]      ',end='\r')
-            sleep(0.200)        
+        self.pushButton_4.clicked.connect(self.run)      
 
     def mo_file_cookie(self, type):
         files, _ = QtWidgets.QFileDialog.getOpenFileNames(None, 'Chọn Tệp', '', 'All Files (*.*)')
@@ -397,7 +381,7 @@ class Ui_MainWindow(object):
                         self.label_2.setText(f"Số name: {len(names)}")
 
     def run(self):
-        global outlooks, names, nothreads, window_height, window_width, gap
+        global outlooks, names, nothreads, window_height, window_width, gap, end_thread
         if outlooks == []:
             QMessageBox.information(None , 'Error', 'Chưa có outlook')
         elif names == []:
@@ -412,19 +396,27 @@ class Ui_MainWindow(object):
             dis = len(outlooks) // nothreads
             for i in range(0, len(outlooks), nothreads):
                 threads = []
+                end_thread = [0] * nothreads
                 for j in range(i, i + nothreads):
                     row = (j % nothreads) // nothreads  # Tính số hàng (0-based index)
                     col = (j % nothreads) % nothreads  # Tính số cột (0-based index)
-                    print(j)
+                    # print(j)
                     x_position = col * (window_width + gap)
                     y_position = row * (window_height + gap)
                     t = threading.Thread(target=self.main, args=(j, dis, nothreads, x_position, y_position))
                     threads.append(t)
                     t.start()
-                    self.start_task()
+                    self.ui_sleep(5)
 
-                for t in threads:
-                    t.join()
+                while sum(end_thread) < nothreads:
+                    # print(end_thread)
+                    self.ui_sleep(5)
+
+
+                            
+
+    def ui_sleep(self, x):
+        QtTest.QTest.qWait(x * 1000)
 
     def generate_random_string(self):
         length = random.randint(6, 10)
@@ -435,13 +427,13 @@ class Ui_MainWindow(object):
 
     def readCodeOutLook(self, email, password):
         with MailBox('outlook.office365.com').login(email, password) as mailbox:
+            code = None
             for msg in mailbox.fetch():
                 if msg.subject == 'Snapchat Login Verification Code':
                     data = msg.html.split('\n')
                     code = data[31].strip()
                     print(code)
-                    return code
-            return None
+            return code
 
 
 
