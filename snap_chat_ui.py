@@ -116,6 +116,7 @@ class Ui_MainWindow(object):
         atr = url.split('&')
         atr[1] = 'num=' + str(n)
         link = '&'.join(atr)
+
         response = requests.get(link)
         if response.status_code == 200:
             prxs = response.text.split('\n')
@@ -173,7 +174,7 @@ class Ui_MainWindow(object):
                     options=options,
                 )
                 driver.set_window_position(x_pos, y_pos)
-                driver.set_page_load_timeout(80)
+                driver.set_page_load_timeout(180)
                 driver.get("https://accounts.snapchat.com/accounts/v2/signup")
                 
                 # self.ui_sleep(15)
@@ -186,7 +187,7 @@ class Ui_MainWindow(object):
                     )
                     accept_button.click()
                 except Exception as e:
-                    print("No cookie accept button found or an error occurred:")
+                    print("Không tìm thấy button chấp nhận cookie, tiếp tục")
                 
                 try:
                     accept_button = WebDriverWait(driver, 30).until(
@@ -206,30 +207,30 @@ class Ui_MainWindow(object):
                 name = self.get_random_name()
                 first_name.send_keys(name)
                 
-                self.ui_sleep(2)
+                self.ui_sleep(5)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập last name"))
                 name = self.get_random_name()
                 last_name = driver.find_element(By.CSS_SELECTOR, "input[name=last_name]")
                 last_name.send_keys(name)
 
-                self.ui_sleep(2)
+                self.ui_sleep(5)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập username"))
                 user_name = driver.find_element(By.CSS_SELECTOR, "input[name=username]")
                 un = self.generate_random_string()
                 user_name.send_keys(un)
                 
-                self.ui_sleep(2)
+                self.ui_sleep(5)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập email"))
                 email = driver.find_element(By.CSS_SELECTOR, "input[name=email]")               
                 email.send_keys(mail.split('|')[0])
                 print(f"Đang đăng ký cho mail {mail.split('|')[0]} index: {j}")
 
-                self.ui_sleep(2)
+                self.ui_sleep(5)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập password"))
                 pw = driver.find_element(By.CSS_SELECTOR, "input[name=password]")
                 pw.send_keys(mail.split('|')[1])
 
-                self.ui_sleep(2)
+                self.ui_sleep(5)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập ngày sinh"))
                 month = driver.find_element(By.CSS_SELECTOR, "select[name=birthday_month]")
                 select = Select(month)
@@ -241,11 +242,12 @@ class Ui_MainWindow(object):
 
                 year = driver.find_element(By.CSS_SELECTOR, "input[name=birthday_year]")
                 year.send_keys(random.randint(1980, 2004))
+                self.ui_sleep(5)
 
                 print(driver.current_url)
                 submit = driver.find_element(By.CSS_SELECTOR, "button")
                 submit.click()
-                self.count_down_ui(30)
+                self.count_down_ui(j, 30)
                 prefix = "https://accounts.snapchat.com/accounts/v2/signup/email_verification"
                 
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập mã xác minh"))
@@ -265,14 +267,16 @@ class Ui_MainWindow(object):
                             break
                         elif res == "Chưa có mail":
                             self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Chưa có mail, thử lấy lại code"))
-                            self.count_down_ui(j, 60)
+                            self.ui_sleep(20)
+                            self.count_down_ui(j, 40)
                         
                         elif res == "Tên đã đăng ký":
                             self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Tên đã đăng ký, thử lại tên khác"))
                             un = self.generate_random_string()
                             user_name.send_keys(un)
                             submit.click()
-                            self.count_down_ui(30)
+                            self.ui_sleep(10)
+                            self.count_down_ui(j, 20)
                             # ấn submit và lặp lại lấy code
                             # self.submit_data(driver, j, distant, un, mail, prefix)
                         elif res == "Email đã đăng ký":
@@ -289,7 +293,7 @@ class Ui_MainWindow(object):
                     print("Error")
                 finally:
                     driver.quit()
-            self.ui_sleep(5)
+            # self.ui_sleep(5)
 
     def count_down_ui(self, index, x):
         for i in range(x, 0, -1):
@@ -298,6 +302,7 @@ class Ui_MainWindow(object):
 
     def submit_data(self, driver, n, distant, un, mail, prefix):
         global registered, mail_used
+        self.ui_sleep(60)
         if driver.current_url.startswith(prefix):
                 print("Nhập mã xác minh")
                 code = self.readCodeOutLook(mail.split('|')[0], mail.split('|')[1])
@@ -313,12 +318,10 @@ class Ui_MainWindow(object):
                     mail_used.flush()
                     print("Đăng ký thành công, chuyển sang mail tiếp theo")
                     return "Đăng ký thành công"
-                    
                 else:
                     print("Chưa có mail, chờ 1 phút để lấy lại mail")
                     return "Chưa có mail"
         else:
-            self.ui_sleep(5)
             if driver.page_source.find("Username is already taken") != -1:
                 print(f"Tên {un} đã đăng ký, đang tạo lại username")
                 return "Tên đã đăng ký"
@@ -432,7 +435,7 @@ class Ui_MainWindow(object):
                 if msg.subject == 'Snapchat Login Verification Code':
                     data = msg.html.split('\n')
                     code = data[31].strip()
-                    print(code)
+            print(code)
             return code
 
 

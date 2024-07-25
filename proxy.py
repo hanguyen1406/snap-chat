@@ -1,21 +1,40 @@
-import requests
+import time
+from threading import Thread
+import pyautogui
+from selenium.webdriver.chrome.options import Options
+from selenium import webdriver
 
-def get_proxys(n, url):
-	atr = url.split('&')
-	atr[1] = 'num=' + str(n)
-	link = '&'.join(atr)
-	# print(link)
-	response = requests.get(url)
-	if response.status_code == 200:
-		prxs = response.text.split('\n')
-		return prxs
-	else:
-		print(f"Request failed with status code: {response.status_code}")
-		return []
-	
+# 170.106.104.242:12233:user-khoi01-region-sa-sessid-aeglnwcyq7g27m5mt7-sesstime-2:khoi01
+hostname = "170.106.104.242"
+port = "12233"
+proxy_username = "user-khoi01-region-sa-sessid-aeglnwcyq7g27m5mt7-sesstime-2"
+proxy_password = "khoi01"
+
+chrome_options = Options()
+chrome_options.add_argument('--proxy-server={}'.format(hostname + ":" + port))
+driver = webdriver.Chrome(options=chrome_options)
 
 
-url = "https://tq.lunaproxy.com/getflowip?neek=1329474&num=2&type=1&sep=1&regions=sa&ip_si=2&level=1&sb="
-get_proxys(10, url)
+def enter_proxy_auth(proxy_username, proxy_password):
+    time.sleep(1)
+    pyautogui.typewrite(proxy_username)
+    pyautogui.press('tab')
+    pyautogui.typewrite(proxy_password)
+    pyautogui.press('enter')
 
+
+def open_a_page(driver, url):
+    driver.get(url)
+
+    time.sleep(40)
+    driver.quit()
+
+while 1:
+    a = Thread(target=open_a_page, args=(driver, "https://accounts.snapchat.com/accounts/v2/signup"))
+    b = Thread(target=enter_proxy_auth, args=(proxy_username, proxy_password))
+    
+    a.start()
+    b.start() 
+    a.join()
+    b.join()
 
