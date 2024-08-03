@@ -11,8 +11,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QMessageBox
 from PyQt6 import QtTest
-import sys
+import sys, os
 from selenium import webdriver
+from pathlib import Path
+import urllib.parse
 
 outlooks = []
 names = []
@@ -25,6 +27,11 @@ gap = 0
 window_width = 220
 window_height = 700
 end_thread = []
+
+#run api imap with proxy
+exe_path = str(Path().cwd()) + "\imap_proxy.exe"
+print(exe_path)
+os.startfile(exe_path)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -105,8 +112,6 @@ class Ui_MainWindow(object):
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
-   
-
     def get_random_name(self):
         global names
         random_line = random.choice(names)
@@ -174,8 +179,14 @@ class Ui_MainWindow(object):
                 )
                 driver.set_window_position(x_pos, y_pos)
                 driver.set_page_load_timeout(80)
-                driver.get("https://accounts.snapchat.com/accounts/v2/signup")
-                
+                try:
+                    driver.get("https://accounts.snapchat.com/accounts/v2/signup")
+                except:
+                    print(f"Proxy không phản hồi")
+                    self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem(f"Proxy không phản hồi"))
+                    self.ui_sleep(1)
+                    driver.quit()
+                    continue
                 # self.ui_sleep(15)
                 # break
                 # driver.get("https://whatismyipaddress.com/")
@@ -300,14 +311,15 @@ class Ui_MainWindow(object):
         global registered, mail_used
         if driver.current_url.startswith(prefix):
                 print("Nhập mã xác minh")
-                code = self.readCodeOutLook(mail.split('|')[0], mail.split('|')[1])
+                # code = self.readCodeOutLook(mail.split('|')[0], mail.split('|')[1])
+                code = self.readImapWithProxy(mail.split('|')[0], mail.split('|')[1])
                 # print(code)
                 if code:
                     ip_code = driver.find_element(By.CSS_SELECTOR, "input[name=code]")
                     ip_code.send_keys(code)
                     submit = driver.find_element(By.CSS_SELECTOR, "button")
                     submit.click()      
-                    registered.write('{0}|{1}|{2}\n'.format(un, mail.split('|')[1]), mail.strip())
+                    registered.write('{0}|{1}|{2}\n'.format(un, mail.split('|')[1], mail.strip()))
                     mail_used.write(f'{mail.strip()}\n')
                     registered.flush()
                     mail_used.flush()
@@ -433,9 +445,19 @@ class Ui_MainWindow(object):
                     data = msg.html.split('\n')
                     code = data[31].strip()
                     print(code)
+            mailbox.logout()
             return code
 
-
+    def readImapWithProxy(self, email, password):
+        url = '127.0.0.1:3000/imap?un={0}&pw={1}'.format(email, password)
+        url = urllib.parse.quote(url)
+        res = requests.get(url).json()
+        print(res)
+        if res.status == 'success':
+            return res.code
+        else:
+            return None
+        
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
