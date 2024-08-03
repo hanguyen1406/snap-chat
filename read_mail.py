@@ -2,13 +2,12 @@ from imap_tools import MailBox, AND
 import re
 
 # Get date, subject and body len of all emails from INBOX folder
-with MailBox('outlook.office365.com').login('stephanidreessens@hotmail.com', 'D53FbFDFv9Oh') as mailbox:
-    codes = []
+with MailBox('outlook.office365.com').login('juliaveslb95@outlook.com.vn', 'o6ya4QrmHq') as mailbox:
+    code = None
     for msg in mailbox.fetch():
-        # print(msg.subject)
-        if msg.subject.find("là mã TikTok của bạn") != -1:
-            code = msg.subject.split(' ')[0]
-            # print(code)
-            codes.append(code)
-
-    print(codes[-1])
+        if msg.subject == 'Snapchat Login Verification Code':
+            data = msg.html.split('\n')
+            code = data[31].strip()
+    
+    print(code)
+    mailbox.logout()

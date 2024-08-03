@@ -1,4 +1,3 @@
-from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import Select
@@ -7,12 +6,13 @@ from imap_tools import MailBox, AND
 import re, threading, random, string, requests
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service as ChromeService
-from webdriver_manager.chrome import ChromeDriverManager
+# from selenium.webdriver.chrome.service import Service
+# from webdriver_manager.chrome import ChromeDriverManager
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QMessageBox
 from PyQt6 import QtTest
-
+import sys
+from selenium import webdriver
 
 outlooks = []
 names = []
@@ -169,7 +169,7 @@ class Ui_MainWindow(object):
                 options.add_argument(f"--window-size={window_width},{window_height}")
                 options.add_experimental_option('excludeSwitches', ['enable-logging'])
                 driver = webdriver.Chrome(
-                    service=ChromeService(ChromeDriverManager().install()),
+                    # service=Service(ChromeDriverManager().install()),
                     options=options,
                 )
                 driver.set_window_position(x_pos, y_pos)
@@ -206,30 +206,30 @@ class Ui_MainWindow(object):
                 name = self.get_random_name()
                 first_name.send_keys(name)
                 
-                self.ui_sleep(2)
+                self.ui_sleep(5)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập last name"))
                 name = self.get_random_name()
                 last_name = driver.find_element(By.CSS_SELECTOR, "input[name=last_name]")
                 last_name.send_keys(name)
 
-                self.ui_sleep(2)
+                self.ui_sleep(5)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập username"))
                 user_name = driver.find_element(By.CSS_SELECTOR, "input[name=username]")
                 un = self.generate_random_string()
                 user_name.send_keys(un)
                 
-                self.ui_sleep(2)
+                self.ui_sleep(5)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập email"))
                 email = driver.find_element(By.CSS_SELECTOR, "input[name=email]")               
                 email.send_keys(mail.split('|')[0])
                 print(f"Đang đăng ký cho mail {mail.split('|')[0]} index: {j}")
 
-                self.ui_sleep(2)
+                self.ui_sleep(5)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập password"))
                 pw = driver.find_element(By.CSS_SELECTOR, "input[name=password]")
                 pw.send_keys(mail.split('|')[1])
 
-                self.ui_sleep(2)
+                self.ui_sleep(5)
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập ngày sinh"))
                 month = driver.find_element(By.CSS_SELECTOR, "select[name=birthday_month]")
                 select = Select(month)
@@ -245,7 +245,7 @@ class Ui_MainWindow(object):
                 print(driver.current_url)
                 submit = driver.find_element(By.CSS_SELECTOR, "button")
                 submit.click()
-                self.count_down_ui(30)
+                self.count_down_ui(j, 30)
                 prefix = "https://accounts.snapchat.com/accounts/v2/signup/email_verification"
                 
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập mã xác minh"))
@@ -307,7 +307,7 @@ class Ui_MainWindow(object):
                     ip_code.send_keys(code)
                     submit = driver.find_element(By.CSS_SELECTOR, "button")
                     submit.click()      
-                    registered.write(f'{un}|{mail.split('|')[1]}|{mail.strip()}\n')
+                    registered.write('{0}|{1}|{2}\n'.format(un, mail.split('|')[1]), mail.strip())
                     mail_used.write(f'{mail.strip()}\n')
                     registered.flush()
                     mail_used.flush()
@@ -438,7 +438,6 @@ class Ui_MainWindow(object):
 
 
 if __name__ == "__main__":
-    import sys
     app = QtWidgets.QApplication(sys.argv)
     MainWindow = QtWidgets.QMainWindow()
     ui = Ui_MainWindow()
