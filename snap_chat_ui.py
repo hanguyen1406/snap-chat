@@ -6,15 +6,14 @@ from imap_tools import MailBox, AND
 import re, threading, random, string, requests
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-# from selenium.webdriver.chrome.service import Service
-# from webdriver_manager.chrome import ChromeDriverManager
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QMessageBox
 from PyQt6 import QtTest
-import sys, os
+import sys
 from selenium import webdriver
-from pathlib import Path
 import urllib.parse
+from selenium.webdriver.common.keys import Keys
+
 
 outlooks = []
 names = []
@@ -28,10 +27,22 @@ window_width = 220
 window_height = 700
 end_thread = []
 
-#run api imap with proxy
-exe_path = str(Path().cwd()) + "\imap_proxy.exe"
-print(exe_path)
-os.startfile(exe_path)
+
+def TmProxy(api_key: str):
+	json_site = {"api_key": api_key,"sign": "string","id_location": 0}
+	while True:
+		requests_proxy1 = requests.post('https://tmproxy.com/api/proxy/get-new-proxy', json=json_site).json()
+		if requests_proxy1['code'] == 0:
+			return {'status': "success", 'http': requests_proxy1['data']['https']}
+		elif requests_proxy1['code'] == 5:
+			requests_proxy2 = requests.post('https://tmproxy.com/api/proxy/get-current-proxy', json={"api_key": api_key}).json()
+			if requests_proxy2['data']['timeout'] >= 300:
+				return {'status': "success", 'http': requests_proxy2['data']['https']}
+			else:
+				giay=str(requests_proxy2['message']).split('after ')[1].split(' sec')[0]
+				return {'status': "wait", 'time': giay}
+		else:
+			return {'status': "error", 'mess': requests_proxy2['message']}
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -129,6 +140,28 @@ class Ui_MainWindow(object):
             print(f"Request failed with status code: {response.status_code}")
             return []
 
+    def get_proxys_free(self):
+        try:
+            url = "https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=http&proxy_format=protocolipport&format=text&timeout=20000"
+            response = requests.get(url)
+            
+            if response.status_code == 200:
+                data = response.text.split('\n')
+                random_proxy = random.choice(data)
+                return random_proxy
+            else:
+                print(f"Error fetching the proxy list: {response.status_code}")
+                return None
+        except requests.RequestException as err:
+            print(f"Error fetching the proxy list: {err}")
+            return None
+
+    def get_proxy_in_file(self):
+        with open('proxy.txt', 'r') as f:
+            lines = f.readlines()
+            return 'http://' + random.choice(lines).strip()
+
+
     def main(self, j, distant, nothreads, x_pos, y_pos):
         # j là index của acc trong list outlooks
         global user_agents, outlooks, window_width, window_height, end_thread
@@ -146,8 +179,8 @@ class Ui_MainWindow(object):
             else:
                 # Configure Chrome options to use the proxy
                 try:
-                    proxy = self.get_proxys(1, self.lineEdit_2.text())[0]
-                    # proxy = self.get_proxys(1, self.lineEdit_2.text())
+                    proxy = self.get_proxy_in_file()
+                    # proxy = self.get_proxys(1, self.lineEdit_2.text())[0]
                     if proxy[0] == '{': 
                         self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Lấy proxy lỗi, đang thử lại..."))
                         print("Get proxy lỗi", end="\r")
@@ -275,9 +308,11 @@ class Ui_MainWindow(object):
                             exit_loop = True
                             break
                         elif res == "Chưa có mail":
-                            self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Chưa có mail, thử lấy lại code"))
+                            self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Chưa có mail, bỏ qua acc này"))
                             self.count_down_ui(j, 60)
-                        
+                            exit_loop = True
+                            end_thread[j % nothreads] = 1
+                            break
                         elif res == "Tên đã đăng ký":
                             self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Tên đã đăng ký, thử lại tên khác"))
                             un = self.generate_random_string()
@@ -294,29 +329,128 @@ class Ui_MainWindow(object):
                         elif res == "Proxy dính check capcha":
                             self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Proxy dính check capcha, thử lại ip khác"))
                             break
-                    if exit_loop:
-                        break
+                    
                 except:
                     print("Error")
                 finally:
+                    if exit_loop:
+                        self.ui_sleep(20)
+                        break
                     driver.quit()
-            self.ui_sleep(5)
+        self.ui_sleep(5)
 
     def count_down_ui(self, index, x):
         for i in range(x, 0, -1):
             self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem(f"Còn {i}s"))
             self.ui_sleep(1)
 
+    def loginGetCodeHotmail(self, index, email, password):
+        # Execute JavaScript to open the link in a new tab
+        try:
+            options = webdriver.ChromeOptions()
+            GetPrx = TmProxy("2de068c5aa064df4cd3867721a4772ad")
+            if GetPrx["status"] == "success":
+                prx = {"http":GetPrx["http"], "https":GetPrx["http"]}
+                print(prx)
+            elif GetPrx["status"] == "wait":
+                print("Vui Lòng Đợi "+str(GetPrx["time"]))
+            else:
+                print(GetPrx["mess"])
+
+            options.add_argument(f"--proxy-server={prx['http']}")
+            driver = webdriver.Chrome(options=options)
+
+            code = None
+            logined = False
+            url = "https://login.live.com/login.srf?wa=wsignin1.0&rpsnv=157&ct=1722703115&rver=7.0.6738.0&wp=MBI_SSL&wreply=https%3a%2f%2foutlook.live.com%2fowa%2f%3fnlp%3d1%26cobrandid%3dab0455a0-8d03-46b9-b18b-df2f57b9e44c%26culture%3dvi-vn%26country%3dvn%26RpsCsrfState%3d6e64d1dc-8896-37f0-65f4-934eab8651ca&id=292841&aadredir=1&CBCXT=out&lw=1&fl=dob%2cflname%2cwld&cobrandid=ab0455a0-8d03-46b9-b18b-df2f57b9e44c"
+            driver.get(url)
+            # Optionally, switch to the new tab
+            self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Đang ở link đăng nhập hotmail"))
+            self.ui_sleep(15)
+        
+            emailInput = driver.find_element(By.NAME, "loginfmt")
+            emailInput.send_keys(email)
+
+            submitButton = driver.find_elements(By.CSS_SELECTOR, "button")
+            # print(submitButton)
+            submitButton[0].click()
+            self.ui_sleep(15)
+
+            passwordInput = driver.find_element(By.NAME, "passwd")
+            passwordInput.send_keys(password)
+            self.ui_sleep(5)
+            submitButton = driver.find_elements(By.CSS_SELECTOR, "button")
+            print(submitButton)
+            submitButton[1].click()
+            self.ui_sleep(20)
+
+            if driver.page_source.find("Stay signed in?") != -1:
+                # click nút yes
+                submitButton = driver.find_elements(By.CSS_SELECTOR, "button")
+                submitButton[1].click()
+                self.ui_sleep(5)
+                logined = True
+            elif driver.current_url == "https://outlook.live.com/mail/0/":
+                logined = True
+            
+            self.ui_sleep(15)
+
+            if logined:
+                while 1:
+                    try:
+                        print("Đang load search icon")
+                        self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Đang load search icon"))
+                        element = WebDriverWait(driver, 2).until(
+                            EC.presence_of_element_located((By.XPATH, "//i[@data-icon-name='Search']"))
+                        )
+                        if element: break
+                        print("Page is fully loaded")
+                    except Exception as e:
+                        print(f"An error occurred")
+
+                #click search input
+                # searchIcon = driver.find_element(By.XPATH, "//i[@data-icon-name='Search']")
+                element.click()
+
+                self.ui_sleep(5)
+                searchInput = driver.find_element(By.CSS_SELECTOR, "#topSearchInput")
+
+                searchInput.send_keys("snapchat" + Keys.ENTER)
+                self.ui_sleep(15)
+
+                element = driver.find_element(By.XPATH, "//div[@id='groupHeaderKết quả hàng đầu' or @id='groupHeaderAll results']/following-sibling::*[1]")
+                # print(len(element))
+
+                if element:
+                    # print(element.text)
+                    text = element.get_attribute("aria-label")
+                    if 'Team Snapchat Snapchat Login Verification Code' in text:
+                        code = text.split(': ')[1].split(' ')[0]
+                
+                self.ui_sleep(2)
+        except: 
+            print("Lỗi ở đăng nhập")
+            self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Lỗi ở đăng nhập"))
+        finally:
+            print(code)
+            driver.quit()
+            # Switch back to the original tab
+            return code
+
     def submit_data(self, driver, n, distant, un, mail, prefix):
         global registered, mail_used
         if driver.current_url.startswith(prefix):
                 print("Nhập mã xác minh")
                 # code = self.readCodeOutLook(mail.split('|')[0], mail.split('|')[1])
-                code = self.readImapWithProxy(mail.split('|')[0], mail.split('|')[1])
+                
+                # chuyển sang login để lấy code
+                code = self.loginGetCodeHotmail(n, mail.split('|')[0], mail.split('|')[1])
+
                 # print(code)
                 if code:
                     ip_code = driver.find_element(By.CSS_SELECTOR, "input[name=code]")
                     ip_code.send_keys(code)
+                    self.ui_sleep(3)
                     submit = driver.find_element(By.CSS_SELECTOR, "button")
                     submit.click()      
                     registered.write('{0}|{1}|{2}\n'.format(un, mail.split('|')[1], mail.strip()))
@@ -429,6 +563,7 @@ class Ui_MainWindow(object):
 
     def ui_sleep(self, x):
         QtTest.QTest.qWait(x * 1000)
+        
 
     def generate_random_string(self):
         length = random.randint(6, 10)
@@ -448,17 +583,8 @@ class Ui_MainWindow(object):
             mailbox.logout()
             return code
 
-    def readImapWithProxy(self, email, password):
-        url = '127.0.0.1:3000/imap?un={0}&pw={1}'.format(email, password)
-        url = urllib.parse.quote(url)
-        res = requests.get(url).json()
-        print(res)
-        if res.status == 'success':
-            return res.code
-        else:
-            return None
-        
-
+    
+    
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     MainWindow = QtWidgets.QMainWindow()
