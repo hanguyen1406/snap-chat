@@ -19,8 +19,7 @@ def get_proxys_free():
         if response.status_code == 200:
             data = response.text.split('\n')
             random_proxy = random.choice(data)
-            # return random_proxy.strip()
-            return 'http://124.243.131.113:32058'
+            return random_proxy.strip()
         else:
             print(f"Error fetching the proxy list: {response.status_code}")
             return None
@@ -77,7 +76,10 @@ searchInput = driver.find_element(By.CSS_SELECTOR, "#topSearchInput")
 searchInput.send_keys("snapchat" + Keys.ENTER)
 time.sleep(15)
 
-element = driver.find_element(By.XPATH, "//div[@id='groupHeaderKết quả hàng đầu' or @id='groupHeaderAll results']/following-sibling::*[1]")
+try:
+    element = driver.find_element(By.XPATH, "//div[@id='groupHeaderAll results']/following-sibling::*[1]")
+except:
+    print("Không có tất cả kq")
 # print(len(element))
 code = None
 
@@ -87,20 +89,6 @@ if element:
     if 'Team Snapchat Snapchat Login Verification Code' in text:
         code = text.split(': ')[1].split(' ')[0]
 
-# for i in range(len(element)):
-#     try:
-#         # element[i].click()
-#         text = element[i].get_attribute("aria-label")
-#         # print(f"element {i}: {text}")
-#         if 'Team Snapchat Snapchat Login Verification Code' in text:
-#             code = text.split(': ')[1].split(' ')[0]
-#             break 
-#         else:
-#             print(f"element {i} ko phải snapchat")
-#     except:
-#         print(f"element {i} ko get đc")
-#     finally:
-#         time.sleep(3)
 
 print(code)
 

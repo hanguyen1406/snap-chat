@@ -301,14 +301,14 @@ class Ui_MainWindow(object):
                         #vòng lặp này sẽ lặp đế khi nhận đc code thì dừng
                         # => điều kiện dừng là nhận đc code
                         #vòng lặp này sẽ lặp lại khi chưa nhận đc mail hoặc tên đã đk
-                        res = self.submit_data(driver, j, distant, un, mail, prefix)
+                        res = self.submit_data(driver, j, distant, un, mail, prefix, x_pos, y_pos)
                         if res == "Đăng ký thành công":
                             end_thread[j % nothreads] = 1
                             self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Đăng ký thành công, chuyển email tiếp"))
                             exit_loop = True
                             break
                         elif res == "Chưa có mail":
-                            self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Chưa có mail, bỏ qua acc này"))
+                            self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Chưa có mail, hoặc ko login được"))
                             self.count_down_ui(j, 60)
                             exit_loop = True
                             end_thread[j % nothreads] = 1
@@ -334,7 +334,7 @@ class Ui_MainWindow(object):
                     print("Error")
                 finally:
                     if exit_loop:
-                        self.ui_sleep(20)
+                        self.count_down_ui(j, 30)
                         break
                     driver.quit()
         self.ui_sleep(5)
@@ -344,8 +344,9 @@ class Ui_MainWindow(object):
             self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem(f"Còn {i}s"))
             self.ui_sleep(1)
 
-    def loginGetCodeHotmail(self, index, email, password):
+    def loginGetCodeHotmail(self, index, email, password, x_pos, y_pos):
         # Execute JavaScript to open the link in a new tab
+        global window_height, window_width
         try:
             options = webdriver.ChromeOptions()
             GetPrx = TmProxy("2de068c5aa064df4cd3867721a4772ad")
@@ -358,15 +359,18 @@ class Ui_MainWindow(object):
                 print(GetPrx["mess"])
 
             options.add_argument(f"--proxy-server={prx['http']}")
+            options.add_argument(f"--window-size={window_width},{window_height}")
+            options.add_experimental_option('excludeSwitches', ['enable-logging'])
             driver = webdriver.Chrome(options=options)
-
+            driver.set_window_position(x_pos, y_pos)
+            driver.set_page_load_timeout(80)
             code = None
             logined = False
             url = "https://login.live.com/login.srf?wa=wsignin1.0&rpsnv=157&ct=1722703115&rver=7.0.6738.0&wp=MBI_SSL&wreply=https%3a%2f%2foutlook.live.com%2fowa%2f%3fnlp%3d1%26cobrandid%3dab0455a0-8d03-46b9-b18b-df2f57b9e44c%26culture%3dvi-vn%26country%3dvn%26RpsCsrfState%3d6e64d1dc-8896-37f0-65f4-934eab8651ca&id=292841&aadredir=1&CBCXT=out&lw=1&fl=dob%2cflname%2cwld&cobrandid=ab0455a0-8d03-46b9-b18b-df2f57b9e44c"
             driver.get(url)
             # Optionally, switch to the new tab
             self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Đang ở link đăng nhập hotmail"))
-            self.ui_sleep(15)
+            self.count_down_ui(index, 15)
         
             emailInput = driver.find_element(By.NAME, "loginfmt")
             emailInput.send_keys(email)
@@ -374,7 +378,7 @@ class Ui_MainWindow(object):
             submitButton = driver.find_elements(By.CSS_SELECTOR, "button")
             # print(submitButton)
             submitButton[0].click()
-            self.ui_sleep(15)
+            self.count_down_ui(index, 15)
 
             passwordInput = driver.find_element(By.NAME, "passwd")
             passwordInput.send_keys(password)
@@ -382,7 +386,7 @@ class Ui_MainWindow(object):
             submitButton = driver.find_elements(By.CSS_SELECTOR, "button")
             print(submitButton)
             submitButton[1].click()
-            self.ui_sleep(20)
+            self.count_down_ui(index, 20)
 
             if driver.page_source.find("Stay signed in?") != -1:
                 # click nút yes
@@ -393,7 +397,7 @@ class Ui_MainWindow(object):
             elif driver.current_url == "https://outlook.live.com/mail/0/":
                 logined = True
             
-            self.ui_sleep(15)
+            self.count_down_ui(index, 15)
 
             if logined:
                 while 1:
@@ -416,7 +420,7 @@ class Ui_MainWindow(object):
                 searchInput = driver.find_element(By.CSS_SELECTOR, "#topSearchInput")
 
                 searchInput.send_keys("snapchat" + Keys.ENTER)
-                self.ui_sleep(15)
+                self.count_down_ui(index, 15)
 
                 element = driver.find_element(By.XPATH, "//div[@id='groupHeaderKết quả hàng đầu' or @id='groupHeaderAll results']/following-sibling::*[1]")
                 # print(len(element))
@@ -437,14 +441,14 @@ class Ui_MainWindow(object):
             # Switch back to the original tab
             return code
 
-    def submit_data(self, driver, n, distant, un, mail, prefix):
+    def submit_data(self, driver, n, distant, un, mail, prefix, x_pos, y_pos):
         global registered, mail_used
         if driver.current_url.startswith(prefix):
                 print("Nhập mã xác minh")
                 # code = self.readCodeOutLook(mail.split('|')[0], mail.split('|')[1])
                 
                 # chuyển sang login để lấy code
-                code = self.loginGetCodeHotmail(n, mail.split('|')[0], mail.split('|')[1])
+                code = self.loginGetCodeHotmail(n, mail.split('|')[0], mail.split('|')[1], x_pos, y_pos)
 
                 # print(code)
                 if code:
