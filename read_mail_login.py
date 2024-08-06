@@ -71,23 +71,9 @@ time.sleep(15)
 searchIcon = driver.find_element(By.XPATH, "//i[@data-icon-name='Search']")
 searchIcon.click()
 time.sleep(3)
-searchInput = driver.find_element(By.CSS_SELECTOR, "#topSearchInput")
-
-searchInput.send_keys("snapchat" + Keys.ENTER)
-time.sleep(15)
-
-try:
-    element = driver.find_element(By.XPATH, "//div[@id='groupHeaderAll results']/following-sibling::*[1]")
-except:
-    print("Không có tất cả kq")
-# print(len(element))
 code = None
 
-if element:
-    # print(element.text)
-    text = element.get_attribute("aria-label")
-    if 'Team Snapchat Snapchat Login Verification Code' in text:
-        code = text.split(': ')[1].split(' ')[0]
+
 
 
 print(code)

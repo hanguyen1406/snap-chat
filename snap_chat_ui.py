@@ -11,9 +11,9 @@ from PyQt6.QtWidgets import QMessageBox
 from PyQt6 import QtTest
 import sys
 from selenium import webdriver
-import urllib.parse
 from selenium.webdriver.common.keys import Keys
-
+import poplib, email
+from email.header import decode_header
 
 outlooks = []
 names = []
@@ -43,6 +43,45 @@ def TmProxy(api_key: str):
 				return {'status': "wait", 'time': giay}
 		else:
 			return {'status': "error", 'mess': requests_proxy2['message']}
+
+class HotMail:
+    def __init__(self, email_address, password):
+        self.email = email_address
+        self.password = password
+        
+        self.server = "outlook.office365.com"
+        self.port = 995
+        if "gmail.com" in self.email:
+            self.server = "pop.gmail.com"
+        self.mail = poplib.POP3_SSL(self.server, self.port)
+        self.mail.user(self.email)
+        self.mail.pass_(self.password)         
+
+    def load_pop3(self):
+        email_count, total_size = self.mail.stat()
+        code = None
+        email_ids = range(max(1, email_count - 4), email_count + 1)
+        for email_id in email_ids:
+            raw_email = b"\n".join(self.mail.retr(email_id)[1])
+            msg = email.message_from_bytes(raw_email)
+            subject, encoding = decode_header(msg["subject"])[0]
+            if isinstance(subject, bytes):
+                subject = subject.decode(encoding if encoding else "utf-8")
+            body = ""
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_type() == "text/plain":
+                        body = part.get_payload(decode=True).decode()
+            else:
+                body = msg.get_payload(decode=True).decode()
+            if subject == "Snapchat Login Verification Code":
+                # print("Subject:", subject)
+                code = body.split('\n')[31].strip()
+        return code    
+
+    def load(self):
+        return self.load_pop3()
+     
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -179,8 +218,8 @@ class Ui_MainWindow(object):
             else:
                 # Configure Chrome options to use the proxy
                 try:
-                    proxy = self.get_proxy_in_file()
-                    # proxy = self.get_proxys(1, self.lineEdit_2.text())[0]
+                    # proxy = self.get_proxy_in_file()
+                    proxy = self.get_proxys(1, self.lineEdit_2.text())[0]
                     if proxy[0] == '{': 
                         self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Lấy proxy lỗi, đang thử lại..."))
                         print("Get proxy lỗi", end="\r")
@@ -289,7 +328,7 @@ class Ui_MainWindow(object):
                 print(driver.current_url)
                 submit = driver.find_element(By.CSS_SELECTOR, "button")
                 submit.click()
-                self.count_down_ui(j, 30)
+                self.count_down_ui(j, 50)
                 prefix = "https://accounts.snapchat.com/accounts/v2/signup/email_verification"
                 
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập mã xác minh"))
@@ -308,8 +347,8 @@ class Ui_MainWindow(object):
                             exit_loop = True
                             break
                         elif res == "Chưa có mail":
-                            self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Chưa có mail, hoặc ko login được"))
-                            self.count_down_ui(j, 60)
+                            self.count_down_ui(j, 10)
+                            self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Lấy code thất bại, bỏ qua"))
                             exit_loop = True
                             end_thread[j % nothreads] = 1
                             break
@@ -337,7 +376,6 @@ class Ui_MainWindow(object):
                         self.count_down_ui(j, 30)
                         break
                     driver.quit()
-        self.ui_sleep(5)
 
     def count_down_ui(self, index, x):
         for i in range(x, 0, -1):
@@ -447,8 +485,15 @@ class Ui_MainWindow(object):
                 print("Nhập mã xác minh")
                 # code = self.readCodeOutLook(mail.split('|')[0], mail.split('|')[1])
                 
+                # lấy code bằng pop3
+                try:
+                    email_viewer = HotMail(mail.split('|')[0], mail.split('|')[1])
+                    code = email_viewer.load()
+                except:
+                    code = None
+
                 # chuyển sang login để lấy code
-                code = self.loginGetCodeHotmail(n, mail.split('|')[0], mail.split('|')[1], x_pos, y_pos)
+                # code = self.loginGetCodeHotmail(n, mail.split('|')[0], mail.split('|')[1], x_pos, y_pos)
 
                 # print(code)
                 if code:
@@ -465,7 +510,7 @@ class Ui_MainWindow(object):
                     return "Đăng ký thành công"
                     
                 else:
-                    print("Chưa có mail, chờ 1 phút để lấy lại mail")
+                    print("Lấy code thất bại")
                     return "Chưa có mail"
         else:
             self.ui_sleep(5)
@@ -577,15 +622,8 @@ class Ui_MainWindow(object):
         return first_letter + other_letters
 
     def readCodeOutLook(self, email, password):
-        with MailBox('outlook.office365.com').login(email, password) as mailbox:
-            code = None
-            for msg in mailbox.fetch():
-                if msg.subject == 'Snapchat Login Verification Code':
-                    data = msg.html.split('\n')
-                    code = data[31].strip()
-                    print(code)
-            mailbox.logout()
-            return code
+        #get code bằng pop3
+        pass
 
     
     
