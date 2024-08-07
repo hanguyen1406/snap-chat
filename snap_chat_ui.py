@@ -218,8 +218,8 @@ class Ui_MainWindow(object):
             else:
                 # Configure Chrome options to use the proxy
                 try:
-                    # proxy = self.get_proxy_in_file()
-                    proxy = self.get_proxys(1, self.lineEdit_2.text())[0]
+                    proxy = self.get_proxy_in_file()
+                    # proxy = self.get_proxys(1, self.lineEdit_2.text())[0]
                     if proxy[0] == '{': 
                         self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Lấy proxy lỗi, đang thử lại..."))
                         print("Get proxy lỗi", end="\r")
@@ -373,8 +373,9 @@ class Ui_MainWindow(object):
                     print("Error")
                 finally:
                     if exit_loop:
-                        self.count_down_ui(j, 30)
-                        break
+                        self.ui_sleep(30)
+                        driver.quit()
+                        break   
                     driver.quit()
 
     def count_down_ui(self, index, x):
@@ -621,9 +622,7 @@ class Ui_MainWindow(object):
         other_letters = ''.join(random.choices(letters, k=length-1))
         return first_letter + other_letters
 
-    def readCodeOutLook(self, email, password):
-        #get code bằng pop3
-        pass
+   
 
     
     
