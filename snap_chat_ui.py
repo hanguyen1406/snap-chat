@@ -12,6 +12,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QMessageBox
 from PyQt6.QtCore import QThread, pyqtSignal
+import poplib, email
+from email.header import decode_header
 
 outlooks = []
 names = []
@@ -25,17 +27,43 @@ window_width = 220
 window_height = 700
 
 
-class Worker(QThread):
-    finished = pyqtSignal()  # Signal emitted when the task is finished
-    progress = pyqtSignal(int)  # Signal emitted to report progress
+class HotMail:
+    def __init__(self, email_address, password):
+        self.email = email_address
+        self.password = password
+        
+        self.server = "outlook.office365.com"
+        self.port = 995
+        if "gmail.com" in self.email:
+            self.server = "pop.gmail.com"
+        self.mail = poplib.POP3_SSL(self.server, self.port)
+        self.mail.user(self.email)
+        self.mail.pass_(self.password)         
 
+    def load_pop3(self):
+        email_count, total_size = self.mail.stat()
+        code = None
+        email_ids = range(max(1, email_count - 4), email_count + 1)
+        for email_id in email_ids:
+            raw_email = b"\n".join(self.mail.retr(email_id)[1])
+            msg = email.message_from_bytes(raw_email)
+            subject, encoding = decode_header(msg["subject"])[0]
+            if isinstance(subject, bytes):
+                subject = subject.decode(encoding if encoding else "utf-8")
+            body = ""
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_type() == "text/plain":
+                        body = part.get_payload(decode=True).decode()
+            else:
+                body = msg.get_payload(decode=True).decode()
+            if subject == "Snapchat Login Verification Code":
+                # print("Subject:", subject)
+                code = body.split('\n')[31].strip()
+        return code    
 
-    def run(self):
-        """Long-running task"""
-        for i in range(7):
-            self.msleep(1000)  # Sleep for 1000 milliseconds (1 second)
-            self.progress.emit(i + 1)  # Emit progress signal
-        self.finished.emit()  # Emit finished signal when done
+    def load(self):
+        return self.load_pop3()
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -116,18 +144,6 @@ class Ui_MainWindow(object):
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
-    def start_task(self):
-        self.worker = Worker()
-        self.worker.progress.connect(self.report_progress)
-        self.worker.finished.connect(self.task_finished)
-        self.worker.start()
-        self.worker.wait()
-
-    def report_progress(self, n):
-        print(f'Task progress: {n}')
-
-    def task_finished(self):
-        print('Task finished')
 
     def get_random_name(self):
         global names
@@ -297,7 +313,12 @@ class Ui_MainWindow(object):
         global registered, mail_used
         if driver.current_url.startswith(prefix):
                 print("Nhập mã xác minh")
-                code = self.readCodeOutLook(mail.split('|')[0], mail.split('|')[1])
+                # code = self.readCodeOutLook(mail.split('|')[0], mail.split('|')[1])
+
+                hotmail = HotMail(mail.split('|')[0], mail.split('|')[1])
+                code = hotmail.load()
+
+
                 # print(code)
                 if code:
                     ip_code = driver.find_element(By.CSS_SELECTOR, "input[name=code]")
