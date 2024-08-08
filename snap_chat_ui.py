@@ -28,22 +28,6 @@ window_height = 700
 end_thread = []
 
 
-def TmProxy(api_key: str):
-	json_site = {"api_key": api_key,"sign": "string","id_location": 0}
-	while True:
-		requests_proxy1 = requests.post('https://tmproxy.com/api/proxy/get-new-proxy', json=json_site).json()
-		if requests_proxy1['code'] == 0:
-			return {'status': "success", 'http': requests_proxy1['data']['https']}
-		elif requests_proxy1['code'] == 5:
-			requests_proxy2 = requests.post('https://tmproxy.com/api/proxy/get-current-proxy', json={"api_key": api_key}).json()
-			if requests_proxy2['data']['timeout'] >= 300:
-				return {'status': "success", 'http': requests_proxy2['data']['https']}
-			else:
-				giay=str(requests_proxy2['message']).split('after ')[1].split(' sec')[0]
-				return {'status': "wait", 'time': giay}
-		else:
-			return {'status': "error", 'mess': requests_proxy2['message']}
-
 class HotMail:
     def __init__(self, email_address, password):
         self.email = email_address
@@ -218,8 +202,8 @@ class Ui_MainWindow(object):
             else:
                 # Configure Chrome options to use the proxy
                 try:
-                    proxy = self.get_proxy_in_file()
-                    # proxy = self.get_proxys(1, self.lineEdit_2.text())[0]
+                    # proxy = self.get_proxy_in_file()
+                    proxy = self.get_proxys(1, self.lineEdit_2.text())[0]
                     if proxy[0] == '{': 
                         self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Lấy proxy lỗi, đang thử lại..."))
                         print("Get proxy lỗi", end="\r")
@@ -345,29 +329,27 @@ class Ui_MainWindow(object):
                             end_thread[j % nothreads] = 1
                             self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Đăng ký thành công, chuyển email tiếp"))
                             exit_loop = True
-                            break
                         elif res == "Chưa có mail":
                             self.count_down_ui(j, 10)
                             self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Lấy code thất bại, bỏ qua"))
                             exit_loop = True
                             end_thread[j % nothreads] = 1
-                            break
                         elif res == "Tên đã đăng ký":
                             self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Tên đã đăng ký, thử lại tên khác"))
                             un = self.generate_random_string()
                             user_name.send_keys(un)
                             submit.click()
                             self.count_down_ui(30)
+                            continue
                             # ấn submit và lặp lại lấy code
                             # self.submit_data(driver, j, distant, un, mail, prefix)
                         elif res == "Email đã đăng ký":
                             end_thread[j % nothreads] = 1
                             self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Email đã đăng ký, chuyển email tiếp"))
                             exit_loop = True
-                            break
                         elif res == "Proxy dính check capcha":
                             self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Proxy dính check capcha, thử lại ip khác"))
-                            break
+                        break
                     
                 except:
                     print("Error")
@@ -383,102 +365,6 @@ class Ui_MainWindow(object):
             self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem(f"Còn {i}s"))
             self.ui_sleep(1)
 
-    def loginGetCodeHotmail(self, index, email, password, x_pos, y_pos):
-        # Execute JavaScript to open the link in a new tab
-        global window_height, window_width
-        try:
-            options = webdriver.ChromeOptions()
-            GetPrx = TmProxy("2de068c5aa064df4cd3867721a4772ad")
-            if GetPrx["status"] == "success":
-                prx = {"http":GetPrx["http"], "https":GetPrx["http"]}
-                print(prx)
-            elif GetPrx["status"] == "wait":
-                print("Vui Lòng Đợi "+str(GetPrx["time"]))
-            else:
-                print(GetPrx["mess"])
-
-            options.add_argument(f"--proxy-server={prx['http']}")
-            options.add_argument(f"--window-size={window_width},{window_height}")
-            options.add_experimental_option('excludeSwitches', ['enable-logging'])
-            driver = webdriver.Chrome(options=options)
-            driver.set_window_position(x_pos, y_pos)
-            driver.set_page_load_timeout(80)
-            code = None
-            logined = False
-            url = "https://login.live.com/login.srf?wa=wsignin1.0&rpsnv=157&ct=1722703115&rver=7.0.6738.0&wp=MBI_SSL&wreply=https%3a%2f%2foutlook.live.com%2fowa%2f%3fnlp%3d1%26cobrandid%3dab0455a0-8d03-46b9-b18b-df2f57b9e44c%26culture%3dvi-vn%26country%3dvn%26RpsCsrfState%3d6e64d1dc-8896-37f0-65f4-934eab8651ca&id=292841&aadredir=1&CBCXT=out&lw=1&fl=dob%2cflname%2cwld&cobrandid=ab0455a0-8d03-46b9-b18b-df2f57b9e44c"
-            driver.get(url)
-            # Optionally, switch to the new tab
-            self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Đang ở link đăng nhập hotmail"))
-            self.count_down_ui(index, 15)
-        
-            emailInput = driver.find_element(By.NAME, "loginfmt")
-            emailInput.send_keys(email)
-
-            submitButton = driver.find_elements(By.CSS_SELECTOR, "button")
-            # print(submitButton)
-            submitButton[0].click()
-            self.count_down_ui(index, 15)
-
-            passwordInput = driver.find_element(By.NAME, "passwd")
-            passwordInput.send_keys(password)
-            self.ui_sleep(5)
-            submitButton = driver.find_elements(By.CSS_SELECTOR, "button")
-            print(submitButton)
-            submitButton[1].click()
-            self.count_down_ui(index, 20)
-
-            if driver.page_source.find("Stay signed in?") != -1:
-                # click nút yes
-                submitButton = driver.find_elements(By.CSS_SELECTOR, "button")
-                submitButton[1].click()
-                self.ui_sleep(5)
-                logined = True
-            elif driver.current_url == "https://outlook.live.com/mail/0/":
-                logined = True
-            
-            self.count_down_ui(index, 15)
-
-            if logined:
-                while 1:
-                    try:
-                        print("Đang load search icon")
-                        self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Đang load search icon"))
-                        element = WebDriverWait(driver, 2).until(
-                            EC.presence_of_element_located((By.XPATH, "//i[@data-icon-name='Search']"))
-                        )
-                        if element: break
-                        print("Page is fully loaded")
-                    except Exception as e:
-                        print(f"An error occurred")
-
-                #click search input
-                # searchIcon = driver.find_element(By.XPATH, "//i[@data-icon-name='Search']")
-                element.click()
-
-                self.ui_sleep(5)
-                searchInput = driver.find_element(By.CSS_SELECTOR, "#topSearchInput")
-
-                searchInput.send_keys("snapchat" + Keys.ENTER)
-                self.count_down_ui(index, 15)
-
-                element = driver.find_element(By.XPATH, "//div[@id='groupHeaderKết quả hàng đầu' or @id='groupHeaderAll results']/following-sibling::*[1]")
-                # print(len(element))
-
-                if element:
-                    # print(element.text)
-                    text = element.get_attribute("aria-label")
-                    if 'Team Snapchat Snapchat Login Verification Code' in text:
-                        code = text.split(': ')[1].split(' ')[0]
-                
-                self.ui_sleep(2)
-        except: 
-            print("Lỗi ở đăng nhập")
-            self.tableWidget.setItem(index, 2, QtWidgets.QTableWidgetItem("Lỗi ở đăng nhập"))
-        finally:
-            print(code)
-            driver.quit()
-            # Switch back to the original tab
-            return code
 
     def submit_data(self, driver, n, distant, un, mail, prefix, x_pos, y_pos):
         global registered, mail_used
@@ -605,7 +491,7 @@ class Ui_MainWindow(object):
                     self.ui_sleep(5)
 
                 while sum(end_thread) < nothreads:
-                    # print(end_thread)
+                    print(end_thread)
                     self.ui_sleep(5)
 
 
