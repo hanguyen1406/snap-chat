@@ -11,7 +11,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QMessageBox
 from PyQt6 import QtTest
-import sys
+import sys, os
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 import poplib, email
@@ -23,13 +23,22 @@ nothreads = 0
 user_agents = open('user-agents.txt').read().splitlines()
 registered = open('reg_success.txt', 'a', encoding='utf-8')
 mail_used = open('mail_used.txt', 'a', encoding='utf-8')
+reg_fail = open('reg_fail.txt', 'w', encoding='utf-8')
+
 # Kích thước và khoảng cách giữa các cửa sổ
 gap = 0
 window_width = 220
 window_height = 700
 end_thread = []
 
+if getattr(sys, 'frozen', False):
+    application_path = os.path.dirname(sys.executable)
+elif __file__:
+    application_path = os.path.dirname(__file__)
 
+extension_folder_path = os.path.join(application_path, 'anticaptcha-plugin_v0.66')
+
+print(extension_folder_path)
 class HotMail:
     def __init__(self, email_address, password):
         self.email = email_address
@@ -167,7 +176,7 @@ class Ui_MainWindow(object):
 
     def get_proxys_free(self):
         try:
-            url = "https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=http&proxy_format=protocolipport&format=text&timeout=20000"
+            url = "https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=http&proxy_format=protocolipport&format=text&timeout=2000"
             response = requests.get(url)
             
             if response.status_code == 200:
@@ -189,7 +198,8 @@ class Ui_MainWindow(object):
 
     def main(self, j, distant, nothreads, x_pos, y_pos):
         # j là index của acc trong list outlooks
-        global user_agents, outlooks, window_width, window_height, end_thread
+        global user_agents, outlooks, window_width, window_height, end_thread, reg_fail
+        loop_cnt = 0
         while 1:
             print(f"Thread {j % nothreads + 1} : ({j} is running)")     
             #kiểm tra mail đã dùng hay chưa
@@ -205,7 +215,9 @@ class Ui_MainWindow(object):
                 # Configure Chrome options to use the proxy
                 try:
                     # proxy = self.get_proxy_in_file()
+                    # proxy = self.get_proxys_free()
                     proxy = self.get_proxys(1, self.lineEdit_2.text())[0]
+                    # print(proxy)
                     if proxy[0] == '{': 
                         self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Lấy proxy lỗi, đang thử lại..."))
                         print("Get proxy lỗi", end="\r")
@@ -217,24 +229,37 @@ class Ui_MainWindow(object):
                         continue
                     else:
                         self.tableWidget.setItem(j, 1, QtWidgets.QTableWidgetItem(proxy))
-                except:
-                    print("Proxy hết dung lượng")
-                    self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Proxy hết dung lượng, dừng chạy"))
-                    break
-                finally:
-                    print(proxy)
+                except Exception as e:
+                    print(e)
+                    print("Proxy mạng chậm")
+                    self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Proxy mạng chậm"))
+                    self.ui_sleep(7)
+                    loop_cnt += 1
+                    if loop_cnt == 3: 
+                        exit()
+                    else:
+                        self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Get lại proxy"))
+                        self.ui_sleep(10)
+                        continue
+
+                if 'http' not in proxy:
+                    proxy = 'http://' + proxy
+                print(proxy)
                 
                 user_agent = random.choice(user_agents)
                 
                 options = Options()
                 options.add_argument(f"--proxy-server={proxy}")
+                options.add_argument(f'--load-extension={extension_folder_path}')
                 options.add_argument(f'user-agent={user_agent}')
+                # options.add_argument("--auto-open-devtools-for-tabs")
                 options.add_argument(f"--window-size={window_width},{window_height}")
                 options.add_experimental_option('excludeSwitches', ['enable-logging'])
                 driver = webdriver.Chrome(
                     # service=Service(ChromeDriverManager().install()),
                     options=options,
                 )
+            
                 driver.set_window_position(x_pos, y_pos)
                 driver.set_page_load_timeout(80)
                 try:
@@ -314,13 +339,14 @@ class Ui_MainWindow(object):
                 print(driver.current_url)
                 submit = driver.find_element(By.CSS_SELECTOR, "button")
                 submit.click()
-                self.count_down_ui(j, 50)
+                self.count_down_ui(j, 180)
                 prefix = "https://accounts.snapchat.com/accounts/v2/signup/email_verification"
                 
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập mã xác minh"))
 
                 try:
                     exit_loop = False
+                    loop_cnt = 0
                     #có 2 vòng loop, 1 vòng là lặp lại đăng ký, 1 vòng là chưa có code mail
                     while 1:
                         #vòng lặp này sẽ lặp đế khi nhận đc code thì dừng
@@ -333,15 +359,35 @@ class Ui_MainWindow(object):
                             exit_loop = True
                         elif res == "Chưa có mail":
                             self.count_down_ui(j, 10)
-                            self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Lấy code thất bại, bỏ qua"))
-                            exit_loop = True
-                            end_thread[j % nothreads] = 1
+                            self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Lấy code thất bại, ấn gửi lại code"))
+                            self.count_down_ui(j, 10)
+                            submit = driver.find_elements(By.CSS_SELECTOR, "button")
+                            submit[1].click()
+                            self.count_down_ui(j, 10)
+                            remail = driver.find_element(By.CSS_SELECTOR, "input")
+                            remail.send_keys(mail.split('|')[0])
+                            submit = driver.find_elements(By.CSS_SELECTOR, "button")
+                            submit[1].click()
+                            loop_cnt += 1   
+                            if loop_cnt > 1:
+                                end_thread[j % nothreads] = 1
+                                self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Không có code"))
+                                # log acc ra file reg_fail
+                                exit_loop = True
+                                reg_fail.write(mail + '\n')
+                                reg_fail.close()
+                            else:
+                                self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Get lại code lần 2"))
+                                continue
+
+                            # exit_loop = True
+                            # end_thread[j % nothreads] = 1
                         elif res == "Tên đã đăng ký":
                             self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Tên đã đăng ký, thử lại tên khác"))
                             un = self.generate_random_string()
                             user_name.send_keys(un)
                             submit.click()
-                            self.count_down_ui(30)
+                            self.count_down_ui(180)   
                             continue
                             # ấn submit và lặp lại lấy code
                             # self.submit_data(driver, j, distant, un, mail, prefix)
@@ -359,7 +405,7 @@ class Ui_MainWindow(object):
                     if exit_loop:
                         self.ui_sleep(30)
                         driver.quit()
-                        break   
+                        break
                     driver.quit()
 
     def count_down_ui(self, index, x):
@@ -371,36 +417,37 @@ class Ui_MainWindow(object):
     def submit_data(self, driver, n, distant, un, mail, prefix, x_pos, y_pos):
         global registered, mail_used
         if driver.current_url.startswith(prefix):
-                print("Nhập mã xác minh")
-                # code = self.readCodeOutLook(mail.split('|')[0], mail.split('|')[1])
-                
-                # lấy code bằng pop3
-                try:
-                    email_viewer = HotMail(mail.split('|')[0], mail.split('|')[1])
-                    code = email_viewer.load()
-                except:
-                    code = None
+            print("Nhập mã xác minh")
+            # code = self.readCodeOutLook(mail.split('|')[0], mail.split('|')[1])
+            
+            # lấy code bằng pop3
+            try:
+                email_viewer = HotMail(mail.split('|')[0], mail.split('|')[1])
+                code = email_viewer.load()
+            except:
+                code = None
 
-                # chuyển sang login để lấy code
-                # code = self.loginGetCodeHotmail(n, mail.split('|')[0], mail.split('|')[1], x_pos, y_pos)
+            # chuyển sang login để lấy code
+            # code = self.loginGetCodeHotmail(n, mail.split('|')[0], mail.split('|')[1], x_pos, y_pos)
 
-                # print(code)
-                if code:
-                    ip_code = driver.find_element(By.CSS_SELECTOR, "input[name=code]")
-                    ip_code.send_keys(code)
-                    self.ui_sleep(3)
-                    submit = driver.find_element(By.CSS_SELECTOR, "button")
-                    submit.click()      
+            # print(code)
+            if code:
+                ip_code = driver.find_element(By.CSS_SELECTOR, "input[name=code]")
+                ip_code.send_keys(code)
+                self.ui_sleep(3)
+                submit = driver.find_element(By.CSS_SELECTOR, "button")
+                submit.click()
+                self.ui_sleep(7)
+                #check lại xem code đã đúng chưa
+                if driver.current_url.startswith("https://accounts.snapchat.com/v2/welcome"):      
                     registered.write('{0}|{1}|{2}\n'.format(un, mail.split('|')[1], mail.strip()))
                     mail_used.write(f'{mail.strip()}\n')
                     registered.flush()
                     mail_used.flush()
                     print("Đăng ký thành công, chuyển sang mail tiếp theo")
                     return "Đăng ký thành công"
-                    
-                else:
-                    print("Lấy code thất bại")
-                    return "Chưa có mail"
+            print("Lấy code thất bại")
+            return "Chưa có mail"
         else:
             self.ui_sleep(5)
             if driver.page_source.find("Username is already taken") != -1:
