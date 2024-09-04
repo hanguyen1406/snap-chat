@@ -339,7 +339,7 @@ class Ui_MainWindow(object):
                 print(driver.current_url)
                 submit = driver.find_element(By.CSS_SELECTOR, "button")
                 submit.click()
-                self.count_down_ui(j, 180)
+                self.count_down_ui(j, 100)
                 prefix = "https://accounts.snapchat.com/accounts/v2/signup/email_verification"
                 
                 self.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem("Nhập mã xác minh"))
@@ -387,7 +387,7 @@ class Ui_MainWindow(object):
                             un = self.generate_random_string()
                             user_name.send_keys(un)
                             submit.click()
-                            self.count_down_ui(180)   
+                            self.count_down_ui(100)   
                             continue
                             # ấn submit và lặp lại lấy code
                             # self.submit_data(driver, j, distant, un, mail, prefix)
