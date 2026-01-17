@@ -1,0 +1,6 @@
+build
+dist
+*.zip
+data
+fun_capcha_data
+GoogleChromePortable64
